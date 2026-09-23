@@ -123,10 +123,12 @@ export function TypingIntro({
   keyboardPlatform,
   onBegin,
   onExit,
+  completionLabel = "Bắt đầu bài luyện",
 }: {
   keyboardPlatform: KeyboardPlatform;
   onBegin: () => void;
   onExit?: () => void;
+  completionLabel?: string;
 }) {
   const [step, setStep] = useState(0);
   const current = steps[step];
@@ -169,7 +171,7 @@ export function TypingIntro({
           <ArrowLeft size={16} /> Quay lại
         </button>
         {finalStep ? (
-          <button className="button button-primary" onClick={onBegin}><Check size={16} /> Bắt đầu bài luyện</button>
+          <button className="button button-primary" onClick={onBegin}><Check size={16} /> {completionLabel}</button>
         ) : (
           <button className="button button-primary" onClick={() => setStep((value) => value + 1)}>Tiếp theo <ArrowRight size={16} /></button>
         )}

@@ -12,6 +12,8 @@ import {
   LoaderCircle,
   Menu,
   Monitor,
+  RotateCcw,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Trophy,
@@ -30,6 +32,8 @@ import { Guide } from "./components/Guide";
 import { TypingIntro } from "./components/TypingIntro";
 
 type Page = "practice" | "lessons" | "progress" | "guide" | "intro" | "friends" | "leaderboard";
+const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 const pageNames: Record<Page, string> = {
   practice: "Luyện tập",
   lessons: "Lộ trình bài tập",
@@ -41,7 +45,11 @@ const pageNames: Record<Page, string> = {
 };
 
 function readRoute(): { page: Page; lessonRef?: string } {
-  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  const pathname = window.location.pathname;
+  const routePath = appBasePath && (pathname === appBasePath || pathname.startsWith(`${appBasePath}/`))
+    ? pathname.slice(appBasePath.length)
+    : pathname;
+  const path = routePath.replace(/\/+$/, "") || "/";
   if (path === "/") return { page: "progress" };
   if (path === "/lessons") return { page: "lessons" };
   if (path === "/guide") return { page: "guide" };
@@ -55,11 +63,11 @@ function readRoute(): { page: Page; lessonRef?: string } {
 }
 
 function pathFor(page: Page, lessonOrder?: number): string {
-  if (page === "progress") return "/";
-  if (page === "intro") return "/typing-intro";
+  if (page === "progress") return `${appBasePath}/`;
+  if (page === "intro") return `${appBasePath}/typing-intro`;
   if (page === "practice")
-    return lessonOrder ? `/practice/bai-${lessonOrder}` : "/practice";
-  return `/${page}`;
+    return lessonOrder ? `${appBasePath}/practice/bai-${lessonOrder}` : `${appBasePath}/practice`;
+  return `${appBasePath}/${page}`;
 }
 
 function lessonFromRoute(lessons: Lesson[], lessonRef?: string): Lesson | undefined {
@@ -84,8 +92,11 @@ export function App() {
     speedUnit: "wpm",
     keyboardPlatform: "auto",
     introSeen: false,
+    lockLessons: true,
   });
   const [preferencesBusy, setPreferencesBusy] = useState(false);
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false);
+  const [resetAllBusy, setResetAllBusy] = useState(false);
   const [detectedPlatform, setDetectedPlatform] = useState<KeyboardPlatform>("windows");
   const [introReturnPage, setIntroReturnPage] = useState<"lessons" | "guide">("lessons");
   const [lessonId, setLessonId] = useState("");
@@ -138,8 +149,8 @@ export function App() {
         (current) => {
           if (sortedLessons.some((item) => item.id === current)) return current;
           const routed = lessonFromRoute(sortedLessons, readRoute().lessonRef);
-          return (routed && isLessonUnlocked(routed, sortedLessons, newAttempts) ? routed.id : undefined) ||
-            nextAvailableLesson(sortedLessons, newAttempts)?.id ||
+          return (routed && isLessonUnlocked(routed, sortedLessons, newAttempts, newPreferences.lockLessons) ? routed.id : undefined) ||
+            nextAvailableLesson(sortedLessons, newAttempts, newPreferences.lockLessons)?.id ||
             sortedLessons.find((item) => !masteredIds.has(item.id))?.id ||
             sortedLessons[0].id;
         },
@@ -196,7 +207,7 @@ export function App() {
   }
   function selectLesson(id: string) {
     const selectedLesson = lessons.find((item) => item.id === id);
-    if (!selectedLesson || !isLessonUnlocked(selectedLesson, lessons, attempts)) {
+    if (!selectedLesson || !isLessonUnlocked(selectedLesson, lessons, attempts, preferences.lockLessons)) {
       setError("Hãy đạt mục tiêu của bài trước để mở khóa bài này.");
       return;
     }
@@ -252,6 +263,27 @@ export function App() {
     [services],
   );
 
+  const resetAllProgress = useCallback(async () => {
+    if (busyRef.current) {
+      setError("Hãy chờ kết quả hiện tại lưu xong rồi xóa toàn bộ tiến độ.");
+      return;
+    }
+    if (!window.confirm("Xóa toàn bộ tiến độ của 250 bài trên thiết bị này? Thao tác này không thể hoàn tác.")) return;
+    setResetAllBusy(true);
+    try {
+      await services.progress.resetAll();
+      setAttempts([]);
+      setLessonId(lessons[0]?.id ?? "");
+      setSessionVersion((version) => version + 1);
+      setAppSettingsOpen(false);
+      setError("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Không thể xóa toàn bộ tiến độ.");
+    } finally {
+      setResetAllBusy(false);
+    }
+  }, [lessons, services]);
+
   const updatePreferences = useCallback(
     async (patch: Partial<Preferences>) => {
       if (preferencesPending.current) return;
@@ -285,9 +317,9 @@ export function App() {
       setPage(next.page);
       const routedLesson = lessonFromRoute(lessons, next.lessonRef);
       if (routedLesson) {
-        const allowedLesson = isLessonUnlocked(routedLesson, lessons, attempts)
+        const allowedLesson = isLessonUnlocked(routedLesson, lessons, attempts, preferences.lockLessons)
           ? routedLesson
-          : nextAvailableLesson(lessons, attempts);
+          : nextAvailableLesson(lessons, attempts, preferences.lockLessons);
         if (allowedLesson) setLessonId(allowedLesson.id);
       }
       setSidebarOpen(false);
@@ -295,13 +327,27 @@ export function App() {
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [attempts, lesson, lessons, page]);
+  }, [attempts, lesson, lessons, page, preferences.lockLessons]);
   useEffect(() => {
     if (!ready || page !== "practice" || !lesson) return;
     const canonicalPath = pathFor("practice", lesson.order);
     if (window.location.pathname !== canonicalPath)
       window.history.replaceState(null, "", canonicalPath);
   }, [lesson, page, ready]);
+  useEffect(() => {
+    if (
+      !ready ||
+      !preferences.lockLessons ||
+      !lesson ||
+      isLessonUnlocked(lesson, lessons, attempts, true)
+    ) return;
+    const allowed = nextAvailableLesson(lessons, attempts, true) ?? lessons[0];
+    if (!allowed) return;
+    setLessonId(allowed.id);
+    setSessionVersion((version) => version + 1);
+    if (page === "practice")
+      window.history.replaceState(null, "", pathFor("practice", allowed.order));
+  }, [attempts, lesson, lessons, page, preferences.lockLessons, ready]);
   useEffect(() => {
     if (!sidebarOpen) return;
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -344,6 +390,92 @@ export function App() {
       <a className="skip-link" href="#main">
         Đến nội dung chính
       </a>
+      {appSettingsOpen && (
+        <div className="lesson-settings-backdrop" role="presentation" onMouseDown={() => !resetAllBusy && setAppSettingsOpen(false)}>
+          <section
+            className="lesson-settings-dialog panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="app-settings-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="section-line">
+              <div>
+                <span className="eyebrow">THIẾT LẬP</span>
+                <h2 id="app-settings-title">Cài đặt ứng dụng</h2>
+              </div>
+              <button className="icon-button" disabled={resetAllBusy} aria-label="Đóng cài đặt" onClick={() => setAppSettingsOpen(false)}><X size={18} /></button>
+            </div>
+            <div className="app-settings-options">
+              <div className="app-setting-row">
+                <div>
+                  <strong>Đơn vị tốc độ</strong>
+                  <span>Hiển thị kết quả theo từ hoặc ký tự mỗi phút.</span>
+                </div>
+                <div className="speed-unit-toggle" role="group" aria-label="Đơn vị tốc độ">
+                  {(["wpm", "cpm"] as const).map((unit) => (
+                    <button
+                      type="button"
+                      key={unit}
+                      className={preferences.speedUnit === unit ? "active" : ""}
+                      aria-pressed={preferences.speedUnit === unit}
+                      disabled={preferencesBusy}
+                      onClick={() => void updatePreferences({ speedUnit: unit })}
+                    >
+                      {unit.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="app-setting-row">
+                <div>
+                  <strong>Kiểu bàn phím</strong>
+                  <span>Điều chỉnh tên các phím hệ thống trong bàn phím ảo.</span>
+                </div>
+                <label className="keyboard-platform-select">
+                  <Keyboard size={14} />
+                  <select
+                    value={preferences.keyboardPlatform}
+                    disabled={preferencesBusy}
+                    aria-label={`Kiểu bàn phím. Đang dùng ${keyboardPlatform}`}
+                    onChange={(event) => void updatePreferences({
+                      keyboardPlatform: event.target.value as Preferences["keyboardPlatform"],
+                    })}
+                  >
+                    <option value="auto">Tự động ({detectedPlatform === "mac" ? "Mac" : detectedPlatform === "windows" ? "Windows" : "Linux"})</option>
+                    <option value="mac">Mac</option>
+                    <option value="windows">Windows</option>
+                    <option value="linux">Linux</option>
+                  </select>
+                </label>
+              </div>
+              <div className="app-setting-row">
+                <div>
+                  <strong>Khóa bài theo lộ trình</strong>
+                  <span>Khi tắt, bạn có thể mở trực tiếp bất kỳ bài nào trong 250 bài.</span>
+                </div>
+                <button
+                  type="button"
+                  className={`setting-switch ${preferences.lockLessons ? "is-on" : ""}`}
+                  role="switch"
+                  aria-checked={preferences.lockLessons}
+                  disabled={preferencesBusy}
+                  onClick={() => void updatePreferences({ lockLessons: !preferences.lockLessons })}
+                >
+                  <i />
+                  {preferences.lockLessons ? "Bật" : "Tắt"}
+                </button>
+              </div>
+            </div>
+            <p>Bài hướng dẫn 00 không thay đổi tiến độ. Chỉ thao tác bên dưới mới xóa kết quả của toàn bộ lộ trình trên thiết bị này.</p>
+            <div className="lesson-settings-actions">
+              <button className="button lesson-reset-button" disabled={resetAllBusy} onClick={() => void resetAllProgress()}>
+                <RotateCcw size={16} /> {resetAllBusy ? "Đang xóa tiến độ…" : "Xóa toàn bộ tiến độ"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {sidebarOpen && (
         <button
           className="sidebar-scrim"
@@ -476,41 +608,19 @@ export function App() {
             )}
           </div>
           <div className="topbar-meta">
-            <label className="keyboard-platform-select">
-              <span className="sr-only">Layout bàn phím</span>
-              <Keyboard size={14} />
-              <select
-                value={preferences.keyboardPlatform}
-                disabled={preferencesBusy}
-                aria-label={`Kiểu bàn phím. Đang dùng ${keyboardPlatform}`}
-                onChange={(event) => void updatePreferences({
-                  keyboardPlatform: event.target.value as Preferences["keyboardPlatform"],
-                })}
-              >
-                <option value="auto">Tự động ({detectedPlatform === "mac" ? "Mac" : detectedPlatform === "windows" ? "Windows" : "Linux"})</option>
-                <option value="mac">Mac</option>
-                <option value="windows">Windows</option>
-                <option value="linux">Linux</option>
-              </select>
-            </label>
-            <div className="speed-unit-toggle" role="group" aria-label="Đơn vị tốc độ">
-              {(["wpm", "cpm"] as const).map((unit) => (
-                <button
-                  type="button"
-                  key={unit}
-                  className={preferences.speedUnit === unit ? "active" : ""}
-                  aria-pressed={preferences.speedUnit === unit}
-                  disabled={preferencesBusy}
-                  onClick={() => void updatePreferences({ speedUnit: unit })}
-                >
-                  {unit.toUpperCase()}
-                </button>
-              ))}
-            </div>
             <span className="local-badge">
               <Monitor size={14} /> Lưu trên thiết bị
             </span>
             <span className="topbar-divider" />
+            <button
+              type="button"
+              className="icon-button app-settings-button"
+              aria-label="Mở cài đặt ứng dụng"
+              title="Cài đặt ứng dụng"
+              onClick={() => setAppSettingsOpen(true)}
+            >
+              <Settings2 size={16} />
+            </button>
             <span className="topbar-streak">
               <Flame size={16} />
               {getStreak(attempts)}
@@ -579,6 +689,7 @@ export function App() {
                   lessons={lessons}
                   attempts={attempts}
                   speedUnit={preferences.speedUnit}
+                  lockLessons={preferences.lockLessons}
                   onSelect={selectLesson}
                   onOpenIntro={() => openIntro("lessons")}
                 />
@@ -604,8 +715,9 @@ export function App() {
                   onExit={() => navigate(introReturnPage)}
                   onBegin={() => {
                     void updatePreferences({ introSeen: true });
-                    selectLesson(lessons[0].id);
+                    navigate(introReturnPage);
                   }}
+                  completionLabel="Hoàn tất hướng dẫn"
                 />
               )}
               {(page === "friends" || page === "leaderboard") && (

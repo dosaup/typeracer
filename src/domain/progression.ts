@@ -16,7 +16,9 @@ export function isLessonUnlocked(
   lesson: Lesson,
   lessons: Lesson[],
   attempts: Attempt[],
+  lockingEnabled = true,
 ): boolean {
+  if (!lockingEnabled) return true;
   if (lesson.order === 1) return true;
   const previous = lessons.find((item) => item.order === lesson.order - 1);
   return previous
@@ -29,12 +31,13 @@ export function isLessonUnlocked(
 export function nextAvailableLesson(
   lessons: Lesson[],
   attempts: Attempt[],
+  lockingEnabled = true,
 ): Lesson | undefined {
   const passed = passedLessonIds(attempts, lessons);
   return (
     lessons.find(
       (lesson) =>
-        isLessonUnlocked(lesson, lessons, attempts) && !passed.has(lesson.id),
+        isLessonUnlocked(lesson, lessons, attempts, lockingEnabled) && !passed.has(lesson.id),
     ) ?? lessons[lessons.length - 1]
   );
 }

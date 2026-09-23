@@ -86,6 +86,7 @@ export interface Preferences {
   speedUnit: SpeedUnit;
   keyboardPlatform: KeyboardPlatformPreference;
   introSeen: boolean;
+  lockLessons: boolean;
 }
 
 export type SpeedUnit = "wpm" | "cpm";

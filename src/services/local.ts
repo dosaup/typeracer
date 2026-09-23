@@ -10,11 +10,13 @@ const defaults: Preferences = {
   speedUnit: "wpm",
   keyboardPlatform: "auto",
   introSeen: false,
+  lockLessons: true,
 };
-type StoredPreferences = Omit<Preferences, "speedUnit" | "keyboardPlatform" | "introSeen"> & {
+type StoredPreferences = Omit<Preferences, "speedUnit" | "keyboardPlatform" | "introSeen" | "lockLessons"> & {
   speedUnit?: SpeedUnit;
   keyboardPlatform?: KeyboardPlatformPreference;
   introSeen?: boolean;
+  lockLessons?: boolean;
 };
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -114,13 +116,15 @@ export function createLocalServices(
         typeof value.showHands === "boolean" &&
         (value.speedUnit === undefined || value.speedUnit === "wpm" || value.speedUnit === "cpm") &&
         (value.keyboardPlatform === undefined || ["auto", "mac", "windows", "linux"].includes(value.keyboardPlatform as string)) &&
-        (value.introSeen === undefined || typeof value.introSeen === "boolean"),
+        (value.introSeen === undefined || typeof value.introSeen === "boolean") &&
+        (value.lockLessons === undefined || typeof value.lockLessons === "boolean"),
     );
     return {
       ...stored,
       speedUnit: stored.speedUnit ?? "wpm",
       keyboardPlatform: stored.keyboardPlatform ?? "auto",
       introSeen: stored.introSeen ?? false,
+      lockLessons: stored.lockLessons ?? true,
     };
   };
   return {
@@ -152,6 +156,12 @@ export function createLocalServices(
           );
           write(getStorage(), ATTEMPTS_KEY, remaining);
         };
+        if (typeof navigator !== "undefined" && navigator.locks)
+          await navigator.locks.request(ATTEMPTS_KEY, reset);
+        else reset();
+      },
+      resetAll: async () => {
+        const reset = () => write(getStorage(), ATTEMPTS_KEY, []);
         if (typeof navigator !== "undefined" && navigator.locks)
           await navigator.locks.request(ATTEMPTS_KEY, reset);
         else reset();

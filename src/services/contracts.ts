@@ -11,6 +11,8 @@ export interface ProgressService {
   saveAttempt(attempt: Attempt): Promise<void>;
   /** Remove only the stored attempts for one lesson. */
   resetLesson(lessonId: string): Promise<void>;
+  /** Remove every stored attempt. Must only be exposed behind explicit confirmation. */
+  resetAll(): Promise<void>;
 }
 
 export interface PreferencesService {

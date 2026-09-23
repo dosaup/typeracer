@@ -17,12 +17,14 @@ export function LessonLibrary({
   lessons,
   attempts,
   speedUnit,
+  lockLessons,
   onSelect,
   onOpenIntro,
 }: {
   lessons: Lesson[];
   attempts: Attempt[];
   speedUnit: SpeedUnit;
+  lockLessons: boolean;
   onSelect: (id: string) => void;
   onOpenIntro: () => void;
 }) {
@@ -30,7 +32,7 @@ export function LessonLibrary({
   const curriculumAttempts = attemptsForLessons(attempts, lessons);
   const passed = passedLessonIds(curriculumAttempts, lessons);
   const completed = new Set(curriculumAttempts.map((a) => a.lessonId));
-  const recommended = nextAvailableLesson(lessons, attempts) ?? lessons[0];
+  const recommended = nextAvailableLesson(lessons, attempts, lockLessons) ?? lessons[0];
   const phases = Array.from(
     new Map(lessons.map((lesson) => [lesson.phaseId, lesson.phaseTitle])),
   );
@@ -56,7 +58,9 @@ export function LessonLibrary({
             {passed.size} <span>/ {lessons.length} bài đạt mục tiêu</span>
           </h2>
           <p>
-            {completed.size} bài đã hoàn thành · Bài tiếp theo mở khi đạt mục tiêu bài hiện tại
+            {completed.size} bài đã hoàn thành · {lockLessons
+              ? "Bài tiếp theo mở khi đạt mục tiêu bài hiện tại"
+              : "Tất cả bài đang được mở để luyện tự do"}
           </p>
           <div className="curriculum-track">
             {lessons.map((l) => (
@@ -110,7 +114,7 @@ export function LessonLibrary({
           const bestWpm = lessonAttempts.reduce((best, attempt) => Math.max(best, attempt.wpm), 0);
           const bestAccuracy = lessonAttempts.reduce((best, attempt) => Math.max(best, attempt.accuracy), 0);
           const mastered = passed.has(lesson.id);
-          const unlocked = isLessonUnlocked(lesson, lessons, attempts);
+          const unlocked = isLessonUnlocked(lesson, lessons, attempts, lockLessons);
           const inProgress = unlocked && completed.has(lesson.id) && !mastered;
           return (
             <article

@@ -3232,10 +3232,31 @@ th,
 }
 .lesson-settings-dialog h2 { margin-top: 4px; font-size: 19px; }
 .lesson-settings-dialog > p { margin-top: 14px; color: #918799; font-size: 11px; line-height: 1.8; }
+.app-settings-options { display: grid; gap: 10px; margin-top: 20px; }
+.app-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px; border: 1px solid #ebe7f0; border-radius: 8px; background: #faf9fc; }
+.app-setting-row > div:first-child { display: grid; gap: 3px; }
+.app-setting-row strong { color: #514b5c; font-size: 11px; }
+.app-setting-row span { color: #9991a2; font-size: 9px; line-height: 1.5; }
+.app-setting-row .speed-unit-toggle { flex: 0 0 auto; }
+.app-setting-row .keyboard-platform-select { flex: 0 0 auto; background: #fff; }
+.app-setting-row .keyboard-platform-select select { max-width: 150px; }
+.setting-switch { display: inline-flex; align-items: center; gap: 7px; min-width: 70px; padding: 6px 9px; border: 1px solid #ded9e6; border-radius: 999px; background: #fff; color: #898191; font-size: 9px; font-weight: 650; }
+.setting-switch i { width: 22px; height: 12px; padding: 2px; border-radius: 999px; background: #cbc5d2; transition: background .15s; }
+.setting-switch i::after { content: ""; display: block; width: 8px; height: 8px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px #2f273d33; }
+.setting-switch.is-on { border-color: #d8d0f2; color: var(--purple-dark); }
+.setting-switch.is-on i { background: var(--purple); }
+.setting-switch.is-on i::after { transform: translateX(10px); }
+.setting-switch:disabled { opacity: .55; cursor: wait; }
 .lesson-settings-actions { display: grid; gap: 9px; margin-top: 20px; }
 .lesson-settings-actions .button { width: 100%; }
 .lesson-reset-button { border-color: #efd8de; background: #fff7f8; color: #a34f60; }
 .lesson-reset-button:hover:not(:disabled) { border-color: #dfb8c2; background: #fff0f2; }
+@media (max-width: 540px) {
+  .app-setting-row { align-items: stretch; flex-direction: column; gap: 9px; }
+  .app-setting-row .speed-unit-toggle { display: inline-flex; align-self: flex-start; }
+  .app-setting-row .keyboard-platform-select { align-self: stretch; justify-content: space-between; }
+  .app-setting-row .keyboard-platform-select select { max-width: none; width: 100%; font-size: 9px; }
+}
 
 /* Intro lesson: code-native visuals stay synchronized with keyboard mappings. */
 .practice-screen--intro { width: 100%; }

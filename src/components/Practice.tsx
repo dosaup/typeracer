@@ -124,7 +124,7 @@ export function Practice({
     : null;
   const nextLesson = lessons.find((item) => item.order === lesson.order + 1);
   const nextLessonUnlocked = nextLesson
-    ? isLessonUnlocked(nextLesson, lessons, attempts) || result?.passed === true
+    ? isLessonUnlocked(nextLesson, lessons, attempts, preferences.lockLessons) || result?.passed === true
     : false;
   const busy =
     status === "countdown" ||
@@ -703,7 +703,7 @@ export function Practice({
                 const passed = attempts.some(
                   (a) => a.lessonId === item.id && a.passed,
                 );
-                const unlocked = isLessonUnlocked(item, lessons, attempts);
+                const unlocked = isLessonUnlocked(item, lessons, attempts, preferences.lockLessons);
                 return (
                   <button
                     className={`journey-item ${item.id === lesson.id ? "current" : ""}`}

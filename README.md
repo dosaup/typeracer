@@ -11,6 +11,13 @@ npm install
 npm run dev
 ```
 
+## Triển khai
+
+Nhánh `main` được tự động build và triển khai lên GitHub Pages tại
+<https://dosaup.github.io/typeracer/> bằng workflow `.github/workflows/deploy-pages.yml`.
+Ứng dụng dùng base path `/typeracer/`; workflow tạo thêm `404.html` để các route
+như `/typeracer/practice/bai-1` vẫn hoạt động khi mở trực tiếp hoặc tải lại trang.
+
 Kiểm tra TypeScript tĩnh:
 
 ```sh
@@ -177,18 +184,22 @@ Bàn phím ảo dùng mapping tập trung trong `domain/keyboard.ts`. Với ch�
 
 Bài hướng dẫn “00” xuất hiện trực tiếp trong Lộ trình và có lối vào ở Góc hướng dẫn. Khi người mới mở bài 1 (`type: intro`) lần đầu, ba bước hướng dẫn trực quan sẽ xuất hiện trước phần gõ F/J. Sau khi hoàn tất, preference `introSeen` được lưu và intro không tự mở lại; người học vẫn có thể chủ động xem từ hai vị trí trên.
 
+Khi xem lại bài 00 từ Lộ trình hoặc Góc hướng dẫn, nút cuối chỉ đánh dấu đã xem và quay về đúng trang trước đó. Nó không chọn lại bài 1, không đổi lesson hiện tại và không ghi/xóa attempts.
+
 Hình được dựng bằng SVG/CSS từ `keyboardRowsFor` và mapping ownership, không phải ảnh bitmap. Bàn tay là silhouette liền khối, có móng/ngấn tay và đứng yên; tay trái/phải hoặc từng ngón được tô trực tiếp cùng màu với phím phụ trách. Các phím chức năng như Ctrl, Shift, Caps, Tab, Enter và Backspace cũng có ownership. Ký tự Shift được hiển thị thành hai tầng trên các phím số/dấu. Chỉ phần chuyển bước có hiệu ứng nhẹ và tự tắt theo `prefers-reduced-motion`.
 
-`Preferences.keyboardPlatform` nhận `auto`, `mac`, `windows` hoặc `linux`. Chế độ auto đọc platform/user-agent của trình duyệt và fallback Windows khi không nhận ra. Lựa chọn này chỉ thay hình dạng/nhãn hàng modifier (`Command`, `Option`, `Win`, `Super`, `AltGr`…); phần chữ của curriculum vẫn dùng QWERTY. Platform hiệu lực được truyền vào bàn phím ảo và intro, đồng thời được lưu cùng preferences.
+Trong “Cài đặt ứng dụng”, người dùng chọn đơn vị tốc độ WPM/CPM và kiểu bàn phím. `Preferences.keyboardPlatform` nhận `auto`, `mac`, `windows` hoặc `linux`. Chế độ auto đọc platform/user-agent của trình duyệt và fallback Windows khi không nhận ra. Lựa chọn này chỉ thay hình dạng/nhãn hàng modifier (`Command`, `Option`, `Win`, `Super`, `AltGr`…); phần chữ của curriculum vẫn dùng QWERTY. Platform hiệu lực được truyền vào bàn phím ảo và intro, đồng thời cả hai tùy chọn được lưu cùng preferences. Thanh trên cùng chỉ giữ một nút mở Settings, không hiển thị các control này trực tiếp.
 
 ## Mở khóa và persistence
 
-Trạng thái bài được suy ra từ attempts:
+Trạng thái bài được suy ra từ attempts khi tùy chọn “Khóa bài theo lộ trình” đang bật:
 
 - `locked`: bài trước chưa đạt;
 - `available`: đã mở nhưng chưa có attempt;
 - `in progress`: đã có attempt nhưng chưa đạt;
 - `completed`: có attempt `passed=true`.
+
+`Preferences.lockLessons` mặc định là `true`. Khi tắt trong “Cài đặt ứng dụng”, `isLessonUnlocked` trả về true cho mọi bài, route trực tiếp và các nút trong Lộ trình/Chặng đường đều cho phép mở bất kỳ bài nào. Tùy chọn này không tự đánh dấu bài là đã đạt và không thay đổi attempts. Nếu bật khóa lại khi đang đứng ở một bài chưa đủ điều kiện, ứng dụng quay về bài hợp lệ tiếp theo của lộ trình.
 
 Các bộ đếm tiến độ chỉ xét attempt có `lessonId` tồn tại trong curriculum hiện tại. Attempt cũ/orphan vẫn được giữ nguyên trong localStorage để không làm mất dữ liệu, nhưng không được cộng vào số “bài đạt mục tiêu”, lịch sử hay thống kê của lộ trình 250 bài.
 
@@ -205,6 +216,8 @@ Trong “Cài đặt bài luyện” có hai mức reset:
 
 - “Đặt lại lượt đang tập” chỉ khởi tạo lại phiên hiện tại, không xóa lịch sử.
 - “Xóa tiến độ bài này” gọi `ProgressService.resetLesson(lessonId)`, chỉ xóa attempts của đúng bài đang mở sau khi người dùng xác nhận. Các bài khác và preferences không bị ảnh hưởng.
+
+“Cài đặt ứng dụng” trên thanh trên cùng có thao tác “Xóa toàn bộ tiến độ”. Đây là nơi duy nhất gọi `ProgressService.resetAll()`; thao tác cần xác nhận và không được kích hoạt từ bài hướng dẫn 00. Preferences, bao gồm lựa chọn bàn phím và trạng thái đã xem intro, vẫn được giữ lại.
 
 Trong vùng gõ, Space hiện tại vẫn render bằng ký tự khoảng trắng thật; dấu chấm chỉ là lớp phủ CSS nên không làm thay đổi độ rộng và wrap của câu sau khi gõ. Viewport chỉ cuộn vừa đủ khi ký tự hiện tại đi ra ngoài vùng nhìn thấy, không căn giữa lại sau từng phím.
 
