@@ -37,7 +37,7 @@ const tips = [
   {
     icon: ShieldCheck,
     title: "Tiến độ nằm trên máy bạn",
-    text: "Kết quả được lưu khi hoàn thành bài và chỉ có trên trình duyệt này. Xóa dữ liệu trang hoặc dùng chế độ riêng tư có thể làm mất tiến độ. Bài đang gõ dở chưa được lưu.",
+    text: "Mỗi profile có tiến độ riêng, được lưu khi hoàn thành bài và chỉ có trên trình duyệt này. Xóa dữ liệu trang hoặc dùng chế độ riêng tư có thể làm mất tiến độ. Bài đang gõ dở chưa được lưu.",
   },
 ];
 

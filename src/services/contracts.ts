@@ -1,4 +1,4 @@
-import type { Attempt, Lesson, Preferences } from "../domain/types";
+import type { Attempt, Lesson, Preferences, Profile } from "../domain/types";
 
 // UI depends only on these async contracts; adapters may use HTTP later.
 export interface LessonService {
@@ -20,8 +20,17 @@ export interface PreferencesService {
   update(patch: Partial<Preferences>): Promise<Preferences>;
 }
 
+export interface ProfileService {
+  list(): Promise<Profile[]>;
+  getActive(): Promise<Profile>;
+  create(name: string): Promise<Profile>;
+  rename(profileId: string, name: string): Promise<Profile>;
+  setActive(profileId: string): Promise<Profile>;
+}
+
 export interface AppServices {
   lessons: LessonService;
+  profiles: ProfileService;
   progress: ProgressService;
   preferences: PreferencesService;
   /** Optional cross-tab / backend subscription. Returns an unsubscribe function. */

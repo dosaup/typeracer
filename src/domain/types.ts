@@ -80,6 +80,12 @@ export interface Attempt {
   mistakes: TypingMistake[];
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface Preferences {
   sound: boolean;
   showHands: boolean;

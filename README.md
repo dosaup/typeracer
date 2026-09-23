@@ -1,6 +1,6 @@
 # Keylane
 
-Ứng dụng học gõ 10 ngón bằng React 19, TypeScript và Vite. Toàn bộ lộ trình 250 bài được đọc từ `src/data/curriculum.json`; UI không khai báo riêng từng bài. Giao diện dùng tiếng Việt, nội dung luyện QWERTY dùng ký tự Latin và tiến độ được lưu cục bộ trên trình duyệt.
+Ứng dụng học gõ 10 ngón bằng React 19, TypeScript và Vite. Toàn bộ lộ trình 250 bài được đọc từ `src/data/curriculum.json`; UI không khai báo riêng từng bài. Giao diện dùng tiếng Việt, nội dung luyện QWERTY dùng ký tự Latin và tiến độ của từng profile được lưu cục bộ trên trình duyệt.
 
 ## Chạy dự án
 
@@ -207,8 +207,12 @@ Bài đã đạt luôn có thể luyện lại. Route chuẩn là `/practice/bai
 
 UI không gọi trực tiếp `localStorage`. `createLocalServices()` lưu:
 
-- `keylane.attempts.v1`: mọi attempt, idempotent theo `Attempt.id`;
-- `keylane.preferences.v1`: âm thanh, hiển thị tay, WPM/CPM, kiểu bàn phím Mac/Windows/Linux và cờ `introSeen`.
+- `keylane.profiles.v1`: danh sách profile trên thiết bị;
+- `keylane.active-profile.v1`: profile đang được sử dụng;
+- `keylane.attempts.v1.<profileId>`: attempt riêng của từng profile, idempotent theo `Attempt.id`;
+- `keylane.preferences.v1.<profileId>`: âm thanh, hiển thị tay, WPM/CPM, kiểu bàn phím Mac/Windows/Linux và cờ `introSeen` riêng của từng profile.
+
+App tự mở profile được dùng gần nhất; tải lại trang không hiện bộ chọn. Người dùng có thể mở bộ chọn từ cuối thanh bên để tạo, đổi tên hoặc chuyển profile. Sau khi chuyển sang profile khác hoặc tạo profile mới, app tải lại trang để khởi tạo toàn bộ phiên với dữ liệu của profile đó. Đổi tên không thay đổi ID nên toàn bộ tiến độ vẫn được giữ nguyên. Dữ liệu ở hai khóa cũ không có hậu tố được tự sao chép vào profile mặc định `Người học 1` trong lần nâng cấp đầu tiên và không bị xóa.
 
 Adapter đọc lại dữ liệu trước khi ghi, dùng Web Locks nếu trình duyệt hỗ trợ và lắng nghe `storage` để đồng bộ giữa tab. Dữ liệu hỏng không bị tự động ghi đè. Để thay backend, triển khai `AppServices` trong adapter mới rồi đổi composition root ở `src/main.tsx`.
 
@@ -217,7 +221,7 @@ Trong “Cài đặt bài luyện” có hai mức reset:
 - “Đặt lại lượt đang tập” chỉ khởi tạo lại phiên hiện tại, không xóa lịch sử.
 - “Xóa tiến độ bài này” gọi `ProgressService.resetLesson(lessonId)`, chỉ xóa attempts của đúng bài đang mở sau khi người dùng xác nhận. Các bài khác và preferences không bị ảnh hưởng.
 
-“Cài đặt ứng dụng” trên thanh trên cùng có thao tác “Xóa toàn bộ tiến độ”. Đây là nơi duy nhất gọi `ProgressService.resetAll()`; thao tác cần xác nhận và không được kích hoạt từ bài hướng dẫn 00. Preferences, bao gồm lựa chọn bàn phím và trạng thái đã xem intro, vẫn được giữ lại.
+“Cài đặt ứng dụng” trên thanh trên cùng có thao tác “Xóa toàn bộ tiến độ”. Đây là nơi duy nhất gọi `ProgressService.resetAll()`; thao tác cần xác nhận, chỉ xóa attempt của profile đang dùng và không được kích hoạt từ bài hướng dẫn 00. Preferences, các profile khác, lựa chọn bàn phím và trạng thái đã xem intro vẫn được giữ lại.
 
 Trong vùng gõ, Space hiện tại vẫn render bằng ký tự khoảng trắng thật; dấu chấm chỉ là lớp phủ CSS nên không làm thay đổi độ rộng và wrap của câu sau khi gõ. Viewport chỉ cuộn vừa đủ khi ký tự hiện tại đi ra ngoài vùng nhìn thấy, không căn giữa lại sau từng phím.
 

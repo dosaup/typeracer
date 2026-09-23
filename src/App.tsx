@@ -17,10 +17,11 @@ import {
   ShieldCheck,
   Sparkles,
   Trophy,
+  UserRound,
   Users,
   X,
 } from "lucide-react";
-import type { Attempt, KeyboardPlatform, Lesson, Preferences } from "./domain/types";
+import type { Attempt, KeyboardPlatform, Lesson, Preferences, Profile } from "./domain/types";
 import { getStreak } from "./domain/typing";
 import { isLessonUnlocked, nextAvailableLesson, passedLessonIds } from "./domain/progression";
 import { detectKeyboardPlatform } from "./domain/keyboard";
@@ -30,6 +31,7 @@ import { LessonLibrary } from "./components/LessonLibrary";
 import { Progress } from "./components/Progress";
 import { Guide } from "./components/Guide";
 import { TypingIntro } from "./components/TypingIntro";
+import { ProfileDialog } from "./components/ProfileDialog";
 
 type Page = "practice" | "lessons" | "progress" | "guide" | "intro" | "friends" | "leaderboard";
 const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -86,6 +88,11 @@ export function App() {
   const [page, setPage] = useState<Page>(() => readRoute().page);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const [profileChooserOpen, setProfileChooserOpen] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState("");
   const [preferences, setPreferences] = useState<Preferences>({
     sound: true,
     showHands: true,
@@ -130,8 +137,10 @@ export function App() {
   const refresh = useCallback(async () => {
     const version = ++loadVersion.current;
     try {
-      const [newLessons, newAttempts, newPreferences] = await Promise.all([
+      const [newLessons, newProfiles, newActiveProfile, newAttempts, newPreferences] = await Promise.all([
         services.lessons.list(),
+        services.profiles.list(),
+        services.profiles.getActive(),
         services.progress.listAttempts(),
         services.preferences.get(),
       ]);
@@ -156,6 +165,8 @@ export function App() {
         },
       );
       setAttempts(newAttempts);
+      setProfiles(newProfiles);
+      setActiveProfile(newActiveProfile);
       setPreferences(newPreferences);
       setReady(true);
       setError("");
@@ -185,6 +196,60 @@ export function App() {
   const onBusyChange = useCallback((busy: boolean) => {
     busyRef.current = busy;
   }, []);
+
+  const selectProfile = useCallback(async (profileId: string) => {
+    if (profileBusy) return;
+    if (profileId !== activeProfile?.id && !canLeave()) return;
+    setProfileBusy(true);
+    setProfileError("");
+    try {
+      if (profileId !== activeProfile?.id) {
+        await services.profiles.setActive(profileId);
+        window.location.reload();
+        return;
+      }
+      setProfileChooserOpen(false);
+      setSidebarOpen(false);
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : "Không thể đổi profile.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [activeProfile?.id, profileBusy, services]);
+
+  const createProfile = useCallback(async (name: string) => {
+    if (profileBusy || !canLeave()) return;
+    setProfileBusy(true);
+    setProfileError("");
+    try {
+      const profile = await services.profiles.create(name);
+      await services.profiles.setActive(profile.id);
+      window.location.reload();
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : "Không thể tạo profile.");
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [profileBusy, services]);
+
+  const renameProfile = useCallback(async (profileId: string, name: string): Promise<boolean> => {
+    if (profileBusy) return false;
+    setProfileBusy(true);
+    setProfileError("");
+    try {
+      const renamed = await services.profiles.rename(profileId, name);
+      setProfiles((current) => current.map((profile) =>
+        profile.id === renamed.id ? renamed : profile,
+      ));
+      setActiveProfile((current) => current?.id === renamed.id ? renamed : current);
+      return true;
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : "Không thể đổi tên profile.");
+      return false;
+    } finally {
+      setProfileBusy(false);
+    }
+  }, [profileBusy, services]);
   function canLeave(): boolean {
     return (
       !busyRef.current ||
@@ -268,7 +333,7 @@ export function App() {
       setError("Hãy chờ kết quả hiện tại lưu xong rồi xóa toàn bộ tiến độ.");
       return;
     }
-    if (!window.confirm("Xóa toàn bộ tiến độ của 250 bài trên thiết bị này? Thao tác này không thể hoàn tác.")) return;
+    if (!window.confirm(`Xóa toàn bộ tiến độ 250 bài của profile “${activeProfile?.name ?? "hiện tại"}”? Thao tác này không thể hoàn tác.`)) return;
     setResetAllBusy(true);
     try {
       await services.progress.resetAll();
@@ -282,7 +347,7 @@ export function App() {
     } finally {
       setResetAllBusy(false);
     }
-  }, [lessons, services]);
+  }, [activeProfile?.name, lessons, services]);
 
   const updatePreferences = useCallback(
     async (patch: Partial<Preferences>) => {
@@ -390,6 +455,19 @@ export function App() {
       <a className="skip-link" href="#main">
         Đến nội dung chính
       </a>
+      {profileChooserOpen && (
+        <ProfileDialog
+          profiles={profiles}
+          activeProfileId={activeProfile?.id ?? ""}
+          required={false}
+          busy={profileBusy}
+          error={profileError}
+          onSelect={(profileId) => void selectProfile(profileId)}
+          onCreate={(name) => void createProfile(name)}
+          onRename={renameProfile}
+          onClose={() => setProfileChooserOpen(false)}
+        />
+      )}
       {appSettingsOpen && (
         <div className="lesson-settings-backdrop" role="presentation" onMouseDown={() => !resetAllBusy && setAppSettingsOpen(false)}>
           <section
@@ -467,7 +545,7 @@ export function App() {
                 </button>
               </div>
             </div>
-            <p>Bài hướng dẫn 00 không thay đổi tiến độ. Chỉ thao tác bên dưới mới xóa kết quả của toàn bộ lộ trình trên thiết bị này.</p>
+            <p>Bài hướng dẫn 00 không thay đổi tiến độ. Thao tác bên dưới chỉ xóa kết quả của profile “{activeProfile?.name ?? "hiện tại"}”; các profile khác được giữ nguyên.</p>
             <div className="lesson-settings-actions">
               <button className="button lesson-reset-button" disabled={resetAllBusy} onClick={() => void resetAllProgress()}>
                 <RotateCcw size={16} /> {resetAllBusy ? "Đang xóa tiến độ…" : "Xóa toàn bộ tiến độ"}
@@ -486,6 +564,7 @@ export function App() {
       <aside
         ref={sidebarRef}
         className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}
+        inert={profileChooserOpen}
         role={sidebarOpen ? "dialog" : undefined}
         aria-modal={sidebarOpen || undefined}
         aria-label="Menu điều hướng"
@@ -574,17 +653,26 @@ export function App() {
           >
             <BookOpen size={18} /> Góc hướng dẫn <ChevronRight size={15} />
           </button>
-          <div className="local-profile">
-            <div className="avatar">K</div>
+          <button
+            type="button"
+            className="local-profile"
+            onClick={() => {
+              setProfileError("");
+              setProfileChooserOpen(true);
+              setSidebarOpen(false);
+            }}
+            aria-label={`Đổi profile. Đang dùng ${activeProfile?.name ?? "profile hiện tại"}`}
+          >
+            <div className="avatar">{Array.from(activeProfile?.name.trim() ?? "K")[0]?.toLocaleUpperCase("vi") ?? "K"}</div>
             <div>
-              <strong>Người học tự do</strong>
-              <span>Không cần tài khoản</span>
+              <strong>{activeProfile?.name ?? "Người học"}</strong>
+              <span>Đổi hoặc tạo profile</span>
             </div>
-            <ShieldCheck size={18} />
-          </div>
+            <UserRound size={18} />
+          </button>
         </div>
       </aside>
-      <div className="main-shell" inert={sidebarOpen}>
+      <div className="main-shell" inert={sidebarOpen || profileChooserOpen}>
         <header className="topbar">
           <div className="breadcrumb">
             <button
